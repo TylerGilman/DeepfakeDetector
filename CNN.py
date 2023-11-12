@@ -102,3 +102,6 @@ with torch.no_grad():
     for i in range(2):
         acc = 100 * n_class_correct[i] / n_class_samples[i]
         print(f"Accuracy of {classes[i]: {acc}} %")
+
+#Save the neural network so we only have to train it once
+torch.save(model.state_dict(), '''Path to save''')
