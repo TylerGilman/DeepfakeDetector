@@ -22,7 +22,7 @@ transform = transforms.Compose([
     transforms.Normalize((.5, .5, .5), (.5, .5, .5))])
 
 #Load in the datasets
-#Replace Nonw with the actual datasets
+#Replace None with the actual datasets
 train_dataset = None
 test_dataset = None
 train_loader = None
