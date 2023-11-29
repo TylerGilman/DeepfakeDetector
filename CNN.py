@@ -50,8 +50,8 @@ split_data('data/full_dataset_images', 'data/split', split_ratio=0.8)
 
 #Hyper parameters
 #Set to arbitrary values noe, to be tuned later
-num_epochs = 35
-batch_size = 8
+num_epochs = 1
+batch_size = 16
 learning_rate = .001
 
 #######################
@@ -97,81 +97,78 @@ class ConvNet(nn.Module):
         x = self.pool(F.relu(self.conv2(x)))
         x = x.view(-1, 16 * 67 * 120)
         x = F.relu(self.fc1(x))
-        x = self.fc2(x)  # Adjusted for the removal of self.fc2
+        x = self.fc2(x)  
         return x
 
-import os
-import gc
+if __name__ == "__main__":
+  import os
+  import gc
 
 
-torch.cuda.empty_cache()
-gc.collect()
-device = torch.device("cuda")
-model = ConvNet().to(device)
+  torch.cuda.empty_cache()
+  gc.collect()
+  device = torch.device("cuda")
+  model = ConvNet().to(device)
 
-# Ensure that model weights are on the GPU
-model = model.to(device)
+  # Ensure that model weights are on the GPU
+  model = model.to(device)
 
-#Loss function and optmizer
-criterion = nn.CrossEntropyLoss()
-optimizer = torch.optim.Adam(model.parameters(), lr = learning_rate)
+  #Loss function and optmizer
+  criterion = nn.CrossEntropyLoss()
+  optimizer = torch.optim.Adam(model.parameters(), lr = learning_rate)
 
 
-#Training the network
-n_total_steps = len(train_loader)
-gc.collect()
-
-for epoch in range(num_epochs):
-  model.train()
-  for i, (images, labels) in enumerate(train_loader):
-    images, labels = images.to(device), labels.to(device)  # Move data to GPU
-
-    print("Input data device:", images.device)
-
-    #forward pass
-    outputs = model(images)
-    loss = criterion(outputs, labels)
-
-    #backward and optimize
-    optimizer.zero_grad()
-    loss.backward()
-    optimizer.step()
-    print(f"Batch {i+1}/{n_total_steps}, Device: {next(model.parameters()).device}")
-    torch.cuda.empty_cache()
+  #Training the network
+  n_total_steps = len(train_loader)
   gc.collect()
 
+  for epoch in range(num_epochs):
+    model.train()
+    for i, (images, labels) in enumerate(train_loader):
+      images, labels = images.to(device), labels.to(device)  # Move data to GPU
 
+      print("Input data device:", images.device)
 
-#Evaluating the network
-with torch.no_grad():
-    n_correct = 0
-    n_samples = 0
-    n_class_correct = [0 for i in range(2)]
-    n_class_samples = [0 for i in range(2)]
-    for images, labels in test_loader:
-        images, labels = images.to(device), labels.to(device)  # Move data to GPU
+      #forward pass
+      outputs = model(images)
+      loss = criterion(outputs, labels)
 
-        outputs = model(images)
-        _, predicted = torch.max(outputs, 1)
-        n_samples += labels.size(0)
-        n_correct += (predicted == labels).sum().item()
-
-        for i in range(labels.size(0)):
-            label = labels[i]
-            pred = predicted[i]
-            if (label == pred):
-                n_class_correct[label] += 1
-            n_class_samples[label] += 1
-    
-    acc = 100 * n_correct / n_samples
-    print(f"Accuracy of the network {acc} %")
-
-    for i in range(2):
-        acc = 100 * n_class_correct[i] / n_class_samples[i]
-        print(f"Accuracy of {classes[i]}: {acc:.2f} %")
+      #backward and optimize
+      optimizer.zero_grad()
+      loss.backward()
+      optimizer.step()
+      torch.cuda.empty_cache()
+    gc.collect()
 
 
 
+  #Evaluating the network
+  with torch.no_grad():
+      n_correct = 0
+      n_samples = 0
+      n_class_correct = [0 for i in range(2)]
+      n_class_samples = [0 for i in range(2)]
+      for images, labels in test_loader:
+          images, labels = images.to(device), labels.to(device)  # Move data to GPU
 
-#Save the neural network so we only have to train it once
-torch.save(model.state_dict(), '''Path to save''')
+          outputs = model(images)
+          _, predicted = torch.max(outputs, 1)
+          n_samples += labels.size(0)
+
+          for i in range(len(classes)):
+              label = labels[i]
+              pred = predicted[i]
+              if (label == pred):
+                  n_class_correct[label] += 1
+                  n_correct += 1
+              n_class_samples[label] += 1
+          model_accuracy = 100.0 * n_correct / n_samples
+
+      for i in range(2):
+          acc = 100 * n_class_correct[i] / n_class_samples[i]
+          print(f"Accuracy of {classes[i]}: {acc:.2f} %")
+
+
+
+  #Save the neural network so we only have to train it once
+  torch.save(model.state_dict(), './models/CNN.pth')
