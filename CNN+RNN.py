@@ -12,11 +12,25 @@ from keras.applications import VGG16, resnet
 from keras.layers import *
 from keras.models import Model, Sequential
 from keras import optimizers
+from keras.preprocessing.image import ImageDataGenerator, load_img
 from keras import regularizers
+from keras.callbacks import EarlyStopping, ReduceLROnPlateau
 
-#Change this to be wherever your dataset is
+####################################
+# First trains a CNN to detecct deepfakes in images
+# Then uses a RNN with the results of a CNN to apply that to vides
+# Presently does not work :(
+####################################
+
+# Change this to be wherever your dataset is the videos
+# Used to train an RNN
 dataset_path_string = "D:\Dataset\dataset\Train"
 dataset_path_test_string = "D:\Dataset\dataset\Test"
+
+#Change this to wherever frame images of the videos are stored
+# Used to train a CNN
+image_dataset_path_string_train = "D:\Dataset\dataset\TrainImages"
+image_dataset_path_string_test = "D:\Dataset\dataset\TestImages"
 
 dataset_path = os.listdir(dataset_path_string)
 label_types = os.listdir(dataset_path_string)
@@ -111,7 +125,8 @@ def load_video(path, max_frames = 0, resize = (IMG_SIZE, IMG_SIZE)):
 # Feature Extraction (CNN)
 ####################################
 
-#My attempt at creating a custom feature extractor with PyTorch. Turned out to be incompatible
+'''
+#My attempt at creating a custom feature extractor with PyTorch. Didn't work for some reason
 class ConvBlock(nn.Module):
     def __init__(self, num_layers, in_channels, out_channels) -> None:
         super().__init__()
@@ -151,11 +166,9 @@ class CNN(nn.Module):
         x = x.flatten(1)
         x = self.cls(x)
         return x
-
+'''
 
 #My attempt to make a custom feature extractor with Tensorflow
-#This would be compatible if I could figure out how to train it
-''' 
 modelcnn = Sequential()
 modelcnn.add(Conv2D(16, (3, 3), activation='relu', input_shape=(IMG_SIZE, IMG_SIZE, 3)))
 modelcnn.add(Conv2D(16, (3,3), activation = 'relu',))
@@ -179,11 +192,124 @@ modelcnn.add(Dropout(0.5))
 modelcnn.add(Dense(1, activation='sigmoid'))
 
 modelcnn.compile(loss='binary_crossentropy',
-                 optimizer=optimizers.RMSprop(lr = 1e-4),
+                 optimizer=optimizers.RMSprop(learning_rate = 1e-4),
                  metrics = ['accuracy'])
 
-modelcnn.fit_generator(train_data= , epochs = 5, validation_data=)
-'''
+
+dataset_path = os.listdir(image_dataset_path_string_train)
+label_types = os.listdir(image_dataset_path_string_train)
+
+rooms = []
+
+for item in dataset_path:
+    # Get all the file names
+    all_rooms = os.listdir(image_dataset_path_string_train + "/" + item)
+
+    #Add them to the list
+    for room in all_rooms:
+        rooms.append((item, str(image_dataset_path_string_train + item) + '/' + room))
+    
+#build a dataframe
+train_images_df = pd.DataFrame(data = rooms, columns=['tag', 'video_name'])
+# Prints a list of each video with it's label
+#print(train_images_df.head())
+#print(train_images_df.tail())
+
+
+df = train_images_df.loc[:,['video_name', 'tag']]
+df
+df.to_csv('trainImages.csv')
+
+#train_images_df["tag"] = train_images_df["tag"].replace({'Fake': 0, 'Real': 1}) 
+
+
+dataset_path = os.listdir(image_dataset_path_string_test)
+label_types = os.listdir(image_dataset_path_string_test)
+
+rooms = []
+
+for item in dataset_path:
+    # Get all the file names
+    all_rooms = os.listdir(image_dataset_path_string_test + "/" + item)
+
+    #Add them to the list
+    for room in all_rooms:
+        rooms.append((item, str(image_dataset_path_string_test + '/' + item) + '/' + room))
+    
+#build a dataframe
+test_images_df = pd.DataFrame(data = rooms, columns=['tag', 'video_name'])
+# Prints a list of each video with it's label
+#print(train_df.head())
+#print(train_df.tail())
+
+df = test_images_df.loc[:,['video_name', 'tag']]
+df
+df.to_csv('testImages.csv')
+
+#test_images_df["tag"] = test_images_df["tag"].replace({'Fake': 0, 'Real': 1}) 
+
+train_datagen = ImageDataGenerator(
+    rotation_range=15,
+    rescale=1./255,
+    shear_range=0.1,
+    zoom_range=0.2,
+    horizontal_flip=True,
+    width_shift_range=0.1,
+    height_shift_range=0.1
+)
+
+IMG_SIZE = 224
+train_generator = train_datagen.flow_from_dataframe(
+    train_images_df, 
+    "D:\Dataset\dataset\TrainImages\\", 
+    x_col='video_name',
+    y_col='tag',
+    target_size=(IMG_SIZE, IMG_SIZE),
+    class_mode='binary',
+    batch_size=IMG_SIZE,
+    validate_filenames=False
+)
+
+
+earlystop = EarlyStopping(patience=10)
+learning_rate_reduction = ReduceLROnPlateau(monitor='val_acc', 
+                                            patience=2, 
+                                            verbose=1, 
+                                            factor=0.5, 
+                                            min_lr=0.00001)
+
+batch_size = 15
+checkpointer = keras.callbacks.ModelCheckpoint(filepath="/weights.hdf5", verbose=1, save_best_only=True)
+callbacks = [earlystop, learning_rate_reduction, checkpointer]
+
+total_validate = test_images_df.shape[0]
+total_train = train_images_df.shape[0]
+
+
+validation_datagen = ImageDataGenerator(rescale=1./255)
+validation_generator = validation_datagen.flow_from_dataframe(
+    test_images_df, 
+    "D:\Dataset\dataset\TestImages/", 
+    x_col='video_name',
+    y_col='tag',
+    target_size=(IMG_SIZE, IMG_SIZE),
+    class_mode='binary',
+    batch_size=batch_size,
+    validate_filenames=False
+)
+
+
+history = modelcnn.fit(
+    train_generator, 
+    epochs= 50,
+    validation_data=validation_generator,
+    validation_steps=total_validate//batch_size,
+    steps_per_epoch=total_train//batch_size,
+    callbacks=callbacks
+)
+
+modelcnn.save_weights("model.h5")
+
 
 #model = CNN(3, 4, 2) 
 #feature_extractor = modelcnn
@@ -208,7 +334,10 @@ def build_feature_extractor():
     outputs = feature_extractor(preprocessed)
     return keras.Model(inputs, outputs, name="feature_extractor")
 print("created feature extractor")
-feature_extractor = build_feature_extractor()
+#feature_extractor = build_feature_extractor()
+
+feature_extractor = modelcnn
+
 
 ####################################
 # Label Encoding
@@ -217,7 +346,7 @@ feature_extractor = build_feature_extractor()
 #Hyperparameters
 IMG_SIZE = 224
 BATCH_SIZE = 64
-EPOCHS = 100
+EPOCHS = 100 
 
 MAX_SEQ_LENGTH = 20
 NUM_FEATURES = 2048
@@ -245,8 +374,8 @@ def prepare_all_videos(df, root_dir):
     #For each video
     for idx, path in enumerate(video_paths):
         #Gather all of its frames and add a batch dimenstion
-        framse = load_video(os.path.join(root_dir, path))
-        frames = framse[None,...]
+        frames = load_video(os.path.join(root_dir, path))
+        frames = frames[None,...]
 
         #Initialize placeholders to store the masks and features of the current video
         temp_frame_mask = np.zeros(shape=(1, MAX_SEQ_LENGTH,), dtype="bool")
@@ -292,11 +421,11 @@ def get_sequence_model():
     rnn_model = keras.Model([frame_features_input, mask_input], output)
 
     rnn_model.compile(
-        loss = 'sparse_categprocal_crossentropy', optimizer = 'adam', metrics = ['accuracy']
+        loss = 'sparse_categorical_crossentropy', optimizer = 'adam', metrics = ['accuracy']
     )
     return rnn_model
 
-EPOCHS = 30
+EPOCHS = 30 
 
 def run_experiment():
     filepath = './tmp/video_classifier'
