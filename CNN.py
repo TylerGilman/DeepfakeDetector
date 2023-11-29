@@ -10,12 +10,6 @@ import os
 import random
 from shutil import copyfile
 
-# Load and preprocess images
-transform = transforms.Compose([
-    transforms.Resize((1080, 1920)),
-    transforms.ToTensor(),
-    transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
-])
 
 # Create training and testing datasets from 2 image folders
 TOTAL_IMAGE_NUMBER = 1000
@@ -54,17 +48,10 @@ def split_data(input_folder, output_folder, split_ratio=0.8):
 # Example usage
 split_data('data/full_dataset_images', 'data/split', split_ratio=0.8)
 
-train_dataset = torchvision.datasets.ImageFolder(root='data/split/train', transform=transform)
-test_dataset = torchvision.datasets.ImageFolder(root='data/split/test', transform=transform)
-
-train_loader = torch.utils.data.DataLoader(dataset=train_dataset, batch_size=800, shuffle=True)
-test_loader = torch.utils.data.DataLoader(dataset=test_dataset, batch_size=200, shuffle=False)
-
-
 #Hyper parameters
 #Set to arbitrary values noe, to be tuned later
-num_epochs = 4
-batch_size = 4
+num_epochs = 35
+batch_size = 8
 learning_rate = .001
 
 #######################
@@ -74,62 +61,86 @@ learning_rate = .001
 #Some transform to normalize the data
 #Again, completely arbitrary. I don't know if this will work 
 #with the dataset that we are using
+
+# Load and preprocess images
 transform = transforms.Compose([
+    transforms.Resize((270, 480)),
     transforms.ToTensor(),
-    transforms.Normalize((.5, .5, .5), (.5, .5, .5))])
+    transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
+])
 
 #Load in the datasets
 #Replace None with the actual datasets
 train_dataset = torchvision.datasets.ImageFolder(root='./data/split/train/', transform=transform)
 test_dataset = torchvision.datasets.ImageFolder(root='./data/split/test', transform=transform)
 
-train_loader = torch.utils.data.DataLoader(dataset=train_dataset, batch_size=batch_size, shuffle=True)
-test_loader = torch.utils.data.DataLoader(dataset=test_dataset, batch_size=batch_size, shuffle=False)
+train_loader = torch.utils.data.DataLoader(dataset=train_dataset, batch_size=batch_size, shuffle=True, pin_memory=True)
+test_loader = torch.utils.data.DataLoader(dataset=test_dataset, batch_size=batch_size, shuffle=False, pin_memory=True)
 
 
-classes = {"Real", "Fake"}
+classes = ["Real", "Fake"]
 
 class ConvNet(nn.Module):
     def __init__(self):
         super(ConvNet, self).__init__()
-        #Sample of what the neural network could look like.
-        #Will likely need more layers to detect deep fakes
-        self.conv1 = nn.Conv2d(3, 32, kernel_size=3, stride=1, padding=1)
+        # Sample of what the neural network could look like.
+        # Will likely need more layers to detect deep fakes
+        self.conv1 = nn.Conv2d(3, 16, kernel_size=3, stride=1, padding=1)
         self.pool = nn.MaxPool2d(kernel_size=2, stride=2)
-        self.conv2 = nn.Conv2d(32, 64, kernel_size=3, stride=1, padding=1)
-        self.fc1 = nn.Linear(64 * 270 * 480, 128)  # Adjust input size based on resized images
-        self.fc2 = nn.Linear(128, 64)
-        self.fc3 = nn.Linear(64, 2)
-        
+        self.conv2 = nn.Conv2d(16, 16, kernel_size=3, stride=1, padding=1)
+        self.fc1 = nn.Linear(67 * 120 * 16, 64)
+        self.fc2 = nn.Linear(64, 2)  # Adjust the input size
+
     def forward(self, x):
-        #Convolutional part
+        # Convolutional part
         x = self.pool(F.relu(self.conv1(x)))
         x = self.pool(F.relu(self.conv2(x)))
-        x = x.view(-1, 64 * 270 * 480)
+        x = x.view(-1, 16 * 67 * 120)
         x = F.relu(self.fc1(x))
-        x = F.relu(self.fc2(x))
-        x = self.fc3(x)
+        x = self.fc2(x)  # Adjusted for the removal of self.fc2
         return x
 
+import os
+import gc
 
-model = ConvNet()
+
+torch.cuda.empty_cache()
+gc.collect()
+device = torch.device("cuda")
+model = ConvNet().to(device)
+
+# Ensure that model weights are on the GPU
+model = model.to(device)
 
 #Loss function and optmizer
 criterion = nn.CrossEntropyLoss()
 optimizer = torch.optim.Adam(model.parameters(), lr = learning_rate)
 
+
 #Training the network
 n_total_steps = len(train_loader)
-for epoch in range(num_epochs):
-    for i, (images, labels) in enumerate(train_loader):
-        #forward pass
-        outputs = model(images)
-        loss = criterion(outputs, labels)
+gc.collect()
 
-        #backward and optimize
-        optimizer.zero_grad()
-        loss.backward()
-        optimizer.step()
+for epoch in range(num_epochs):
+  model.train()
+  for i, (images, labels) in enumerate(train_loader):
+    images, labels = images.to(device), labels.to(device)  # Move data to GPU
+
+    print("Input data device:", images.device)
+
+    #forward pass
+    outputs = model(images)
+    loss = criterion(outputs, labels)
+
+    #backward and optimize
+    optimizer.zero_grad()
+    loss.backward()
+    optimizer.step()
+    print(f"Batch {i+1}/{n_total_steps}, Device: {next(model.parameters()).device}")
+    torch.cuda.empty_cache()
+  gc.collect()
+
+
 
 #Evaluating the network
 with torch.no_grad():
@@ -138,12 +149,14 @@ with torch.no_grad():
     n_class_correct = [0 for i in range(2)]
     n_class_samples = [0 for i in range(2)]
     for images, labels in test_loader:
+        images, labels = images.to(device), labels.to(device)  # Move data to GPU
+
         outputs = model(images)
         _, predicted = torch.max(outputs, 1)
         n_samples += labels.size(0)
         n_correct += (predicted == labels).sum().item()
 
-        for i in range(batch_size):
+        for i in range(labels.size(0)):
             label = labels[i]
             pred = predicted[i]
             if (label == pred):
@@ -151,11 +164,14 @@ with torch.no_grad():
             n_class_samples[label] += 1
     
     acc = 100 * n_correct / n_samples
-    print(f"Accuracy of the networdL {acc} %")
+    print(f"Accuracy of the network {acc} %")
 
     for i in range(2):
         acc = 100 * n_class_correct[i] / n_class_samples[i]
-        print(f"Accuracy of {classes[i]: {acc}} %")
+        print(f"Accuracy of {classes[i]}: {acc:.2f} %")
+
+
+
 
 #Save the neural network so we only have to train it once
 torch.save(model.state_dict(), '''Path to save''')
