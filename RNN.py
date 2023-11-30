@@ -1,58 +1,32 @@
 import torch
-import torchvision
 import torch.nn as nn
 import torch.optim as optim
-import torch.nn.functional as F
-from torch.utils.data import DataLoader
-import torchvision.datasets as datasets
 import torchvision.transforms as transforms
 import numpy as np
 from CNN import ConvNet
 import cv2
-import keras
-import pandas as pd
 import os
-from torchvision.datasets import ImageFolder
 
-#hyperparameters 
-input_size = None
-sequence_length = None
-num_layers = None
-hidden_size = None
-num_classes = None
-learning_rate = None
-batch_size = None
-num_epochs = None
+#The file paths of where the video data is being store
+#should be seperated in two folders, "Fake" and "Real"
+#I think this and configuring the model to a graphics card
+#are the only things you would have to change to get this to work
+train_videos_path = "D:\Dataset\dataset\Train"
+test_videos_path = "D:\Dataset\dataset\Test"
 
-#Load in the datasets
-#Replace None with the actual datasets
-train_dataset = None
-test_dataset = None
-train_loader = None
-test_loader = None
-
-########################################
-# Prepare Video Data
-########################################
-
-# Change this to be wherever your dataset is the videos
-# Used to train an RNN
-train_df = pd.read_csv('train.csv')
-test_df = pd.read_csv('test.csv')
-
+# Loading in the pretrained CNN. Used to train the RNN
 feature_extractor = torch.load("./models/CNN.pth", map_location=torch.device('cpu'))
 model = ConvNet()
 model.load_state_dict(feature_extractor)
 
-label_processor = keras.layers.StringLookup(num_oov_indices = 0, vocabulary=np.unique(train_df['tag']))
-
+#Constants
 IMG_SIZE = 224
 BATCH_SIZE = 64
-EPOCHS = 100 
 
 MAX_SEQ_LENGTH = 20
-NUM_FEATURES = 2048
+NUM_FEATURES = 2
 
+# Loads a video from the given path as a list of frames and resizes it to the given dimensions
 def load_video(path, max_frames = 0, resize = (IMG_SIZE, IMG_SIZE)):
     cap = cv2.VideoCapture(path)
     frames = []
@@ -73,6 +47,7 @@ def load_video(path, max_frames = 0, resize = (IMG_SIZE, IMG_SIZE)):
     return np.array(frames)
 
 
+# Crops out the center square of the given frame
 def crop_center_square(frame):
     y, x = frame.shape[0:2]
     min_dim = min(x, y)
@@ -81,60 +56,87 @@ def crop_center_square(frame):
     return frame[start_y : start_y + min_dim, start_x : start_x + min_dim]
 
 
-def prepare_all_videos(df, root_dir):
-    num_samples = len(df)
-    video_paths = df['video_name'].values.tolist()
+# Transforms to apply to each frame when passed into the model 
+transform = transforms.Compose([
+    transforms.ToTensor(),
+    transforms.Resize((270, 480)),
+    transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
+])
 
-    #take all class Lables from train_df column named 'tag' and store in labels
-    labels = df['tag'].values
+#Returns the CNN predicted result of the video based on each of its frames
+def prepare_all_videos(root_dir):
+    #Counting the number of videos and keeping a list of all of their file paths
+    num_samples = len(os.listdir(root_dir + "/Fake")) + len(os.listdir(root_dir + "/Real"))
+    video_paths = os.listdir(root_dir + "/Fake")
+    video_paths += os.listdir(root_dir + "/Real")
 
-    #convert class lables to label encoding
-    labels = label_processor(labels[..., None]).numpy()
+    #Create an array that stores the class of its associated video as a one-hot vector
+    #The index of the 1 is associated with where it would be in the output of the CNN
+    labels = []
+    for _ in range (len(os.listdir(root_dir + "/Fake"))):
+        labels.append([0, 1])
+    
+    for _ in range (len(os.listdir(root_dir + "/Real"))):
+        labels.append([1, 0])
 
-    frame_masks = np.zeros(shape=(num_samples, MAX_SEQ_LENGTH), dtype='bool')
+    #Am array to store the output of the CNN on each of the frames
     frame_features = np.zeros(shape = (num_samples, MAX_SEQ_LENGTH, NUM_FEATURES), dtype = 'float32')
 
     #For each video
     for idx, path in enumerate(video_paths):
         #Gather all of its frames and add a batch dimenstion
-        frames = load_video(os.path.join(root_dir, path))
+        if labels[idx] == [0, 1]:
+            frames = load_video(os.path.join(root_dir, "Fake", path))
+        else:
+            frames = load_video(os.path.join(root_dir, "Real", path))
         frames = frames[None,...]
 
-        #Initialize placeholders to store the masks and features of the current video
-        temp_frame_mask = np.zeros(shape=(1, MAX_SEQ_LENGTH,), dtype="bool")
-        temp_frame_features = np.zeros(
-            shape=(1, MAX_SEQ_LENGTH, NUM_FEATURES), dtype='float32'
-        )
+        #Initialize placeholders to store features of the current video
+        temp_frame_features = np.zeros(shape = (1, MAX_SEQ_LENGTH, NUM_FEATURES), dtype = 'float32')
 
-        #Extract features from the frames of the current video
-        for i, batch in enumerate(frames):
-            video_length = batch.shape[0]
-            length = min(MAX_SEQ_LENGTH, video_length)
+        seq = 0
+        #For each frame in the video up o MAX_SEQ_LENGTH
+        for frame in frames:
+            length = min(MAX_SEQ_LENGTH, frame[1].shape[0])
             for j in range(length):
-                temp_frame_features[i, j, :] = model(batch[None, j, :])
-            temp_frame_mask[i, :length] = 1
-        
+                #Calculate the predicted class of that frame and add that to the temp array
+                with torch.no_grad():
+                    temp_frame_features[0, j, :] = model(transform(frame[1]).unsqueeze(0))
+            seq += 1
+            if seq >= MAX_SEQ_LENGTH:
+                break
+            
+        #Squeeze the value of each frame into one value to represent the whole video
         frame_features[idx,] = temp_frame_features.squeeze()
-        frame_masks[idx,] = temp_frame_mask.squeeze()
     
-    return (frame_features, frame_masks), labels
+    return frame_features, labels
 
-train_data, train_labels = prepare_all_videos(train_df, dataset_path_string)
-test_data, test_labels = prepare_all_videos(test_df, dataset_path_test_string)
+#Loading in the data
+train_data, train_labels = prepare_all_videos(train_videos_path)
+test_data, test_labels = prepare_all_videos(test_videos_path)
 
+#hyperparameters 
+input_size = 2
+sequence_length = 20
+num_layers = 3
+hidden_size = 3
+num_classes = 2
+learning_rate = 1e-4
+batch_size = 64
+num_epochs = 30
 
-#Very simple RNN. Can me expanded
+#Simple RNN class
 class RNN(nn.Module):
     def __init__(self, input_size, hidden_size, num_layers, num_classes):
         super(RNN, self).__init__()
         self.hidden_size = hidden_size
         self.num_layers = num_layers
-        self.rnn = nn.RNN(input_size, hidden_size, num_layers, batch_first=Insert proper bool here, depends on dataset)
+        self.rnn = nn.RNN(input_size, hidden_size, num_layers, batch_first=True)
 
         self.fc = nn.Linear(hidden_size * sequence_length, num_classes)
 
     def forward(self, x):
-        h0 = torch.zoros(self.num_layers, x.size(0), self.hidden_size)
+        h0 = torch.zeros(self.num_layers, x.size(0), self.hidden_size)
 
         #Forward prop
         out, _ = self.rnn(x, h0)
@@ -142,37 +144,48 @@ class RNN(nn.Module):
         out = self.fc(out)
         return out
 
-model = RNN(input_size, hidden_size, num_layers, num_classes)
+# Initialize the RNN
+modelrnn = RNN(input_size, hidden_size, num_layers, num_classes)
+
+#Formatting the training data as tensors
+train_loader = torch.utils.data.DataLoader(dataset=train_data, batch_size=batch_size, shuffle=False, pin_memory=True)
+train_labels_tensor = torch.tensor(train_labels, dtype=torch.float32)
+
+#Formatting the testing data as tensors
+test_loader = torch.utils.data.DataLoader(dataset=train_data, batch_size = batch_size, shuffle = False, pin_memory=True)
+test_labels_tensor = torch.tensor(test_labels, dtype=torch.float32)
 
 #loss and optimizer
 criterion = nn.CrossEntropyLoss()
-optimizer = optim.Adam(model.parameters(), lr = learning_rate)
+optimizer = optim.Adam(modelrnn.parameters(), lr = learning_rate)
 
 #Train network
 for epoch in range(num_epochs):
-    for batch_idx, (data, targets) in enumerate(train_loader):
-
+    for batch_idx, data in enumerate(train_loader):
         #forward
-        scores = model(data)
-        loss = criterion(scores, targets)
+        scores = modelrnn(data)
+        loss = criterion(scores[0], train_labels_tensor[batch_idx])
 
         #backward
         optimizer.zero_grad()
         loss.backward()
 
         #optimizer step
-        optim.step()
+        optimizer.step()
 
 #Check accuracy
 num_correct = 0
 num_samples = 0
-model.eval()
+modelrnn.eval()
 
-while torch.no_grad():
-    for x, y in test_loader:
-        scores = model(x)
+with torch.no_grad():
+    for batch_idx, data in enumerate(test_loader):
+        scores = modelrnn(data)
         _, predictions = scores.max(1)
-        num_correct += (predictions == y).sum()
+        num_correct += (predictions == test_labels_tensor[batch_idx]).sum()
         num_samples += predictions.size(0)
     acc = 100 * num_correct / num_samples
-    print(f"Accuracy of the networdL {acc} %")
+    print(f"Accuracy of the network {acc} %")
+
+#Save the neural network so we only have to train it once
+torch.save(model.state_dict(), './models/RNN.pth')
