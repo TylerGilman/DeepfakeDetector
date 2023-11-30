@@ -123,7 +123,7 @@ hidden_size = 3
 num_classes = 2
 learning_rate = 1e-4
 batch_size = 64
-num_epochs = 30
+num_epochs = 30 
 
 #Simple RNN class
 class RNN(nn.Module):
@@ -133,7 +133,7 @@ class RNN(nn.Module):
         self.num_layers = num_layers
         self.rnn = nn.RNN(input_size, hidden_size, num_layers, batch_first=True)
 
-        self.fc = nn.Linear(hidden_size * sequence_length, num_classes)
+        self.fc = nn.Linear(hidden_size * sequence_length, out_features=num_classes)
 
     def forward(self, x):
         h0 = torch.zeros(self.num_layers, x.size(0), self.hidden_size)
@@ -161,10 +161,12 @@ optimizer = optim.Adam(modelrnn.parameters(), lr = learning_rate)
 
 #Train network
 for epoch in range(num_epochs):
+    iter = 0
     for batch_idx, data in enumerate(train_loader):
         #forward
         scores = modelrnn(data)
-        loss = criterion(scores[0], train_labels_tensor[batch_idx])
+        labels_in_batch = train_labels_tensor[batch_idx * iter: batch_idx * iter + scores.shape[0]]
+        loss = criterion(scores, labels_in_batch)
 
         #backward
         optimizer.zero_grad()
@@ -172,6 +174,7 @@ for epoch in range(num_epochs):
 
         #optimizer step
         optimizer.step()
+        iter += 1
 
 #Check accuracy
 num_correct = 0
@@ -179,12 +182,19 @@ num_samples = 0
 modelrnn.eval()
 
 with torch.no_grad():
+    idx = 0
     for batch_idx, data in enumerate(test_loader):
         scores = modelrnn(data)
+
         _, predictions = scores.max(1)
-        num_correct += (predictions == test_labels_tensor[batch_idx]).sum()
-        num_samples += predictions.size(0)
-    acc = 100 * num_correct / num_samples
+        _, classes = test_labels_tensor[batch_idx * iter: batch_idx * iter + scores.shape[0]].max(1)
+
+        num_correct += (predictions == classes).sum()
+        num_samples += predictions.size(-1)
+
+        acc = 100 * num_correct / num_samples
+
+        idx += 1
     print(f"Accuracy of the network {acc} %")
 
 #Save the neural network so we only have to train it once
