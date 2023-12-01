@@ -67,7 +67,7 @@ if __name__ == "__main__":
     #Returns the CNN predicted result of the video based on each of its frames
     def prepare_all_videos(root_dir):
         #Counting the number of videos and keeping a list of all of their file paths
-        num_samples = 16#len(os.listdir(root_dir + "/Fake")) + len(os.listdir(root_dir + "/Real"))
+        num_samples = len(os.listdir(root_dir + "/Fake")) + len(os.listdir(root_dir + "/Real"))
         video_paths = os.listdir(root_dir + "/Fake")
         video_paths += os.listdir(root_dir + "/Real")
 
