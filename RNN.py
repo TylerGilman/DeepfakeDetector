@@ -98,19 +98,18 @@ if __name__ == "__main__":
 
             seq = 0
             #For each frame in the video up o MAX_SEQ_LENGTH
-            for frame in frames:
-                length = min(MAX_SEQ_LENGTH, frame[1].shape[0])
+            for i, frame in enumerate(frames):
+                length = min(MAX_SEQ_LENGTH, frame.shape[0])
+                print(length)
                 for j in range(length):
-                    #Calculate the predicted class of that frame and add that to the temp array
+                #Calculate the predicted class of that frame and add that to the temp array
                     with torch.no_grad():
-                        temp_frame_features[0, j, :] = model(transform(frame[1]).unsqueeze(0))
+                        temp_frame_features[i, j, :] = model(transform(frame[None, j, :][0]).unsqueeze(0))
                     print(temp_frame_features)
-                seq += 1
-                if seq >= MAX_SEQ_LENGTH:
-                    break
                 
             #Squeeze the value of each frame into one value to represent the whole video
             frame_features[idx,] = temp_frame_features.squeeze()
+            break
         
         return frame_features, labels
 
@@ -125,7 +124,7 @@ num_layers = 3
 hidden_size = 3
 num_classes = 2
 learning_rate = 1e-4
-batch_size = 64
+batch_size = BATCH_SIZE
 num_epochs = 30 
 
 #Simple RNN class
@@ -156,7 +155,7 @@ if __name__ == "__main__":
     train_labels_tensor = torch.tensor(train_labels, dtype=torch.float32)
 
     #Formatting the testing data as tensors
-    test_loader = torch.utils.data.DataLoader(dataset=train_data, batch_size = batch_size, shuffle = False, pin_memory=True)
+    test_loader = torch.utils.data.DataLoader(dataset=test_data, batch_size = batch_size, shuffle = False, pin_memory=True)
     test_labels_tensor = torch.tensor(test_labels, dtype=torch.float32)
 
     #loss and optimizer
@@ -186,7 +185,7 @@ if __name__ == "__main__":
     modelrnn.eval()
 
     #Save the neural network so we only have to train it once
-    torch.save(modelrnn.state_dict(), './models/RNN.pth')
+    #torch.save(modelrnn.state_dict(), './models/RNN.pth')
 
     with torch.no_grad():
         done = False
@@ -195,11 +194,15 @@ if __name__ == "__main__":
 
             _, predictions = scores.max(1)
             _, classes = test_labels_tensor[batch_idx * BATCH_SIZE: batch_idx * BATCH_SIZE + scores.shape[0]].max(1)
+            print(batch_idx)
+            print(data)
 
             # This is bad but...trust
             if (classes.shape[0] != predictions.shape[0]):
                 predictions = predictions[0: classes.shape[0]]
                 done = True
+
+
 
             num_correct += (predictions == classes).sum()
             num_samples += predictions.size(-1)
@@ -213,4 +216,4 @@ if __name__ == "__main__":
         print(f"Accuracy of the network {acc} %")
 
     #Save the neural network so we only have to train it once
-    torch.save(modelrnn.state_dict(), './models/RNN.pth')
+    #torch.save(modelrnn.state_dict(), './models/RNN.pth')

@@ -114,9 +114,8 @@ def prepare_all_videos(root_dir):
                 
         #Squeeze the value of each frame into one value to represent the whole video
         frame_features[idx,] = temp_frame_features.squeeze()
-        break
         
-    return frame_features, labels
+        return frame_features, labels
 
 #hyperparameters 
 input_size = 2
@@ -139,17 +138,12 @@ modelrnn.load_state_dict(weights)
 
 video_path = "D:\Dataset\dataset\Train\Fake\\000_003.mp4"
 
-#ideo_data = load_video(video_path)
-#video = prepare_video(video_data)
-#print(video)
+video_data = load_video(video_path)
+video = prepare_video(video_data)
+print(video)
 
-data, _ = prepare_all_videos("D:\Dataset\dataset\Train")
-train_loader = torch.utils.data.DataLoader(dataset=data, batch_size=batch_size, shuffle=False, pin_memory=True)
-
-for batch_idx, vid in enumerate(train_loader):
-    with torch.no_grad():
-        prediction = modelrnn(data)
-
+with torch.no_grad():
+    prediction = modelrnn(video[0])
 classes = ["Real", "Fake"]
 
 probabilities = torch.nn.functional.softmax(prediction[0], dim = 0)
