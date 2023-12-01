@@ -73,6 +73,7 @@ def prepare_all_videos(root_dir):
     #Create an array that stores the class of its associated video as a one-hot vector
     #The index of the 1 is associated with where it would be in the output of the CNN
     labels = []
+
     for _ in range (len(os.listdir(root_dir + "/Fake"))):
         labels.append([0, 1])
     
@@ -165,7 +166,7 @@ for epoch in range(num_epochs):
     for batch_idx, data in enumerate(train_loader):
         #forward
         scores = modelrnn(data)
-        labels_in_batch = train_labels_tensor[batch_idx * iter: batch_idx * iter + scores.shape[0]]
+        labels_in_batch = train_labels_tensor[batch_idx * BATCH_SIZE: batch_idx * BATCH_SIZE + scores.shape[0]]
         loss = criterion(scores, labels_in_batch)
 
         #backward
@@ -181,20 +182,29 @@ num_correct = 0
 num_samples = 0
 modelrnn.eval()
 
+#Save the neural network so we only have to train it once
+torch.save(model.state_dict(), './models/RNN.pth')
+
 with torch.no_grad():
-    idx = 0
+    done = False
     for batch_idx, data in enumerate(test_loader):
         scores = modelrnn(data)
 
         _, predictions = scores.max(1)
-        _, classes = test_labels_tensor[batch_idx * iter: batch_idx * iter + scores.shape[0]].max(1)
+        _, classes = test_labels_tensor[batch_idx * BATCH_SIZE: batch_idx * BATCH_SIZE + scores.shape[0]].max(1)
+
+        # This is bad but...trust
+        if (classes.shape[0] != predictions.shape[0]):
+            predictions = predictions[0: classes.shape[0]]
+            done = True
 
         num_correct += (predictions == classes).sum()
         num_samples += predictions.size(-1)
 
         acc = 100 * num_correct / num_samples
 
-        idx += 1
+        if done:
+            break
     print(f"Accuracy of the network {acc} %")
 
 #Save the neural network so we only have to train it once

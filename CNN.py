@@ -88,19 +88,14 @@ class ConvNet(nn.Module):
         self.conv1 = nn.Conv2d(3, 16, kernel_size=3, stride=1, padding=1)
         self.pool = nn.MaxPool2d(kernel_size=2, stride=2)
         self.conv2 = nn.Conv2d(16, 16, kernel_size=3, stride=1, padding=1)
-        self.conv3 = nn.Conv2d(8, 8, kernel_size=3, stride=1, padding= 1)
-        # I  think changing the 16 to an 8 here would work 
-        self.fc1 = nn.Linear(67 * 120 * 8, 64)
+        self.fc1 = nn.Linear(67 * 120 * 16, 64)
         self.fc2 = nn.Linear(64, 2)  # Adjust the input size
 
     def forward(self, x):
         # Convolutional part
         x = self.pool(F.relu(self.conv1(x)))
         x = self.pool(F.relu(self.conv2(x)))
-        x = self.pool(F.relu(self.conv3(x)))
-
-        # I think the 16 here should also be changed to an 8
-        x = x.view(-1, 8 * 67 * 120)
+        x = x.view(-1, 16 * 67 * 120)
         x = F.relu(self.fc1(x))
         x = self.fc2(x)  
         return x
