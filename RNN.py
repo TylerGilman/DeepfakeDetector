@@ -7,6 +7,14 @@ from CNN import ConvNet
 import cv2
 import os
 
+
+#Constants
+IMG_SIZE = 224
+BATCH_SIZE = 10
+
+MAX_SEQ_LENGTH = 20
+NUM_FEATURES = 2
+
 if __name__ == "__main__":
     #The file paths of where the video data is being store
     #should be seperated in two folders, "Fake" and "Real"
@@ -19,13 +27,6 @@ if __name__ == "__main__":
     feature_extractor = torch.load("./models/CNN.pth", map_location=torch.device('cpu'))
     model = ConvNet()
     model.load_state_dict(feature_extractor)
-
-    #Constants
-    IMG_SIZE = 224
-    BATCH_SIZE = 1
-
-    MAX_SEQ_LENGTH = 20
-    NUM_FEATURES = 2
 
     # Loads a video from the given path as a list of frames and resizes it to the given dimensions
     def load_video(path, max_frames = 0, resize = (IMG_SIZE, IMG_SIZE)):
@@ -47,7 +48,6 @@ if __name__ == "__main__":
             cap.release()
         return np.array(frames)
 
-
     # Crops out the center square of the given frame
     def crop_center_square(frame):
         y, x = frame.shape[0:2]
@@ -67,7 +67,7 @@ if __name__ == "__main__":
     #Returns the CNN predicted result of the video based on each of its frames
     def prepare_all_videos(root_dir):
         #Counting the number of videos and keeping a list of all of their file paths
-        num_samples = len(os.listdir(root_dir + "/Fake")) + len(os.listdir(root_dir + "/Real"))
+        num_samples = 16#len(os.listdir(root_dir + "/Fake")) + len(os.listdir(root_dir + "/Real"))
         video_paths = os.listdir(root_dir + "/Fake")
         video_paths += os.listdir(root_dir + "/Real")
 
@@ -96,20 +96,18 @@ if __name__ == "__main__":
             #Initialize placeholders to store features of the current video
             temp_frame_features = np.zeros(shape = (1, MAX_SEQ_LENGTH, NUM_FEATURES), dtype = 'float32')
 
-            seq = 0
             #For each frame in the video up o MAX_SEQ_LENGTH
             for i, frame in enumerate(frames):
                 length = min(MAX_SEQ_LENGTH, frame.shape[0])
-                print(length)
                 for j in range(length):
                 #Calculate the predicted class of that frame and add that to the temp array
                     with torch.no_grad():
                         temp_frame_features[i, j, :] = model(transform(frame[None, j, :][0]).unsqueeze(0))
-                    print(temp_frame_features)
                 
             #Squeeze the value of each frame into one value to represent the whole video
             frame_features[idx,] = temp_frame_features.squeeze()
-            break
+
+            print(idx)
         
         return frame_features, labels
 
@@ -125,7 +123,7 @@ hidden_size = 3
 num_classes = 2
 learning_rate = 1e-4
 batch_size = BATCH_SIZE
-num_epochs = 30 
+num_epochs = 100
 
 #Simple RNN class
 class RNN(nn.Module):
@@ -185,24 +183,17 @@ if __name__ == "__main__":
     modelrnn.eval()
 
     #Save the neural network so we only have to train it once
-    #torch.save(modelrnn.state_dict(), './models/RNN.pth')
+    torch.save(modelrnn.state_dict(), './models/RNN.pth')
 
     with torch.no_grad():
         done = False
         for batch_idx, data in enumerate(test_loader):
+            print(data)
+            
             scores = modelrnn(data)
 
-            _, predictions = scores.max(1)
+            _, predictions = torch.max(scores, 1)
             _, classes = test_labels_tensor[batch_idx * BATCH_SIZE: batch_idx * BATCH_SIZE + scores.shape[0]].max(1)
-            print(batch_idx)
-            print(data)
-
-            # This is bad but...trust
-            if (classes.shape[0] != predictions.shape[0]):
-                predictions = predictions[0: classes.shape[0]]
-                done = True
-
-
 
             num_correct += (predictions == classes).sum()
             num_samples += predictions.size(-1)
@@ -211,8 +202,7 @@ if __name__ == "__main__":
 
             if done:
                 break
-        print(num_correct)
-        print(num_samples)
+
         print(f"Accuracy of the network {acc} %")
 
     #Save the neural network so we only have to train it once

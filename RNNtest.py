@@ -54,68 +54,17 @@ def prepare_video(frames):
     #Am array to store the output of the CNN on each of the frames
     frame_features = np.zeros(shape = (1, MAX_SEQ_LENGTH, NUM_FEATURES), dtype = 'float32')
 
-    seq = 0
-    for frame in frames:
+    frames = frames[None,...]
+
+
+    for i, frame in enumerate(frames):
         length = min(MAX_SEQ_LENGTH, frame.shape[0])
         for j in range(length):
             #Calculate the predicted class of that frame and add that to the temp array
             with torch.no_grad():
-                frame_features[0, j, :] = modelcnn(transform(frame).unsqueeze(0))
-        seq += 1
-        if seq >= MAX_SEQ_LENGTH:
-            break
-
-        
+                frame_features[i, j, :] = modelcnn(transform(frame[None, j, :][0]).unsqueeze(0))
+    
     return frame_features
-
-#Returns the CNN predicted result of the video based on each of its frames
-def prepare_all_videos(root_dir):
-    #Counting the number of videos and keeping a list of all of their file paths
-    num_samples = len(os.listdir(root_dir + "/Fake")) + len(os.listdir(root_dir + "/Real"))
-    video_paths = os.listdir(root_dir + "/Fake")
-    video_paths += os.listdir(root_dir + "/Real")
-
-    #Create an array that stores the class of its associated video as a one-hot vector
-    #The index of the 1 is associated with where it would be in the output of the CNN
-    labels = []
-
-    for _ in range (len(os.listdir(root_dir + "/Fake"))):
-        labels.append([0, 1])
-        
-    for _ in range (len(os.listdir(root_dir + "/Real"))):
-        labels.append([1, 0])
-
-    #Am array to store the output of the CNN on each of the frames
-    frame_features = np.zeros(shape = (num_samples, MAX_SEQ_LENGTH, NUM_FEATURES), dtype = 'float32')
-
-    #For each video
-    for idx, path in enumerate(video_paths):
-        #Gather all of its frames and add a batch dimenstion
-        if labels[idx] == [0, 1]:
-            frames = load_video(os.path.join(root_dir, "Fake", path))
-        else:
-            frames = load_video(os.path.join(root_dir, "Real", path))
-        frames = frames[None,...]
-
-        #Initialize placeholders to store features of the current video
-        temp_frame_features = np.zeros(shape = (1, MAX_SEQ_LENGTH, NUM_FEATURES), dtype = 'float32')
-
-        seq = 0
-        #For each frame in the video up o MAX_SEQ_LENGTH
-        for frame in frames:
-            length = min(MAX_SEQ_LENGTH, frame[1].shape[0])
-            for j in range(length):
-                #Calculate the predicted class of that frame and add that to the temp array
-                with torch.no_grad():
-                    temp_frame_features[0, j, :] = modelcnn(transform(frame[1]).unsqueeze(0))
-                seq += 1
-                if seq >= MAX_SEQ_LENGTH:
-                    break
-                
-        #Squeeze the value of each frame into one value to represent the whole video
-        frame_features[idx,] = temp_frame_features.squeeze()
-        
-        return frame_features, labels
 
 #hyperparameters 
 input_size = 2
@@ -123,9 +72,6 @@ sequence_length = 20
 num_layers = 3
 hidden_size = 3
 num_classes = 2
-learning_rate = 1e-4
-batch_size = 64
-num_epochs = 30 
 
 cnnWeights = torch.load("./models/CNN.pth", map_location=torch.device('cpu'))
 modelcnn = ConvNet()
@@ -136,14 +82,16 @@ weights = torch.load("./models/RNN.pth", map_location=torch.device('cpu'))
 modelrnn = RNN(input_size, hidden_size, num_layers, num_classes)
 modelrnn.load_state_dict(weights)
 
+# Input 
 video_path = "D:\Dataset\dataset\Train\Fake\\000_003.mp4"
 
 video_data = load_video(video_path)
 video = prepare_video(video_data)
-print(video)
+video = torch.tensor(video)
+
 
 with torch.no_grad():
-    prediction = modelrnn(video[0])
+    prediction = modelrnn(video)
 classes = ["Real", "Fake"]
 
 probabilities = torch.nn.functional.softmax(prediction[0], dim = 0)
