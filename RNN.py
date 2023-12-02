@@ -6,7 +6,7 @@ import numpy as np
 from CNN import ConvNet
 import cv2
 import os
-
+import matplotlib.pyplot as plt
 
 #Constants
 IMG_SIZE = 224
@@ -16,6 +16,14 @@ MAX_SEQ_LENGTH = 20
 NUM_FEATURES = 2
 
 if __name__ == "__main__":
+
+    if torch.backends.mps.is_available():
+        device=torch.device("mps")
+    elif torch.cuda.is_available():
+        device=torch.device("cuda")
+    else:
+        device=torch.device("cpu")
+
     #The file paths of where the video data is being store
     #should be seperated in two folders, "Fake" and "Real"
     #I think this and configuring the model to a graphics card
@@ -147,6 +155,7 @@ class RNN(nn.Module):
 if __name__ == "__main__":
     # Initialize the RNN
     modelrnn = RNN(input_size, hidden_size, num_layers, num_classes)
+    modelrnn.to(device)
 
     #Formatting the training data as tensors
     train_loader = torch.utils.data.DataLoader(dataset=train_data, batch_size=batch_size, shuffle=False, pin_memory=True)
@@ -159,15 +168,21 @@ if __name__ == "__main__":
     #loss and optimizer
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.Adam(modelrnn.parameters(), lr = learning_rate)
-
+    
+    loss_values = []
+    
     #Train network
     for epoch in range(num_epochs):
         iter = 0
         for batch_idx, data in enumerate(train_loader):
+            data = data.to(device)
+
             #forward
             scores = modelrnn(data)
             labels_in_batch = train_labels_tensor[batch_idx * BATCH_SIZE: batch_idx * BATCH_SIZE + scores.shape[0]]
             loss = criterion(scores, labels_in_batch)
+
+            loss_values.append(loss)
 
             #backward
             optimizer.zero_grad()
@@ -182,13 +197,10 @@ if __name__ == "__main__":
     num_samples = 0
     modelrnn.eval()
 
-    #Save the neural network so we only have to train it once
-    torch.save(modelrnn.state_dict(), './models/RNN.pth')
-
     with torch.no_grad():
         done = False
         for batch_idx, data in enumerate(test_loader):
-            print(data)
+            data = data.to(device)
             
             scores = modelrnn(data)
 
@@ -205,5 +217,13 @@ if __name__ == "__main__":
 
         print(f"Accuracy of the network {acc} %")
 
+    #Print the loss function over time
+    plt.plot(len(loss_values), loss_values)
+    plt.title("Loss over iterations")
+    plt.xlabel("Iterations")
+    plt.ylabel("Loss")
+
+    plt.savefig("RNN Loss over interations")
+
     #Save the neural network so we only have to train it once
-    #torch.save(modelrnn.state_dict(), './models/RNN.pth')
+    torch.save(modelrnn.state_dict(), './models/RNN.pth')

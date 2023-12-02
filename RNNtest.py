@@ -83,7 +83,7 @@ modelrnn = RNN(input_size, hidden_size, num_layers, num_classes)
 modelrnn.load_state_dict(weights)
 
 # Input 
-video_path = "D:\Dataset\dataset\Train\Fake\\000_003.mp4"
+video_path = "D:\Dataset\dataset\Train\Fake\\000_004.mp4"
 
 video_data = load_video(video_path)
 video = prepare_video(video_data)
