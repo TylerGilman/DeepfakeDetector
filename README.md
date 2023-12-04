@@ -5,8 +5,5 @@ Misinformation on the internet has increasingly become a topic of concern in rec
 ## Results and Model Performancs
 (。・ω・。)
 
-## Convolution Network Usage Instructions
-To feed a potentially deepfaked image to the convolutional neural network, use the TestCNN.py file. Change the image_path variable to the path of the image you want to run through the network and run the file to view the network's prediction and confidence in the console.
-
-## Recurrent Network Usage Instructions
-To feed a potentially deepfaked image to the recurrent neural netowrk, use teh RNNtest.py file. Change the video_path variable to the path of the vieo that you want o run trhough the network and run the fiel to viewo the network's prediction and confidence in the console. 
+## Running the neetwork
+To feed a potentially deepfaked image or video to the convolutional or recurrent neural network respectively, use the NetworkTest.py file. Run The file and input the file location of either a video or image to get the model's classification (it may take a moment to prompt you to enter a path). Input "stop" to stop the program. 
