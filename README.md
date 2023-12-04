@@ -6,4 +6,4 @@ Misinformation on the internet has increasingly become a topic of concern in rec
 (。・ω・。)
 
 ## Running the Network
-To feed a potentially deepfaked image or video to the convolutional or recurrent neural network respectively, use the NetworkTest.py file. Run The file and input the file location of either a video or image to get the model's classification (it may take a moment to prompt you to enter a path). Input "stop" to stop the program. 
+To feed a potentially deepfaked image or video to the convolutional or recurrent neural network respectively, use the NetworkTest.py file. Run the file and input the file location of either a video or image to get the model's classification (it may take a moment to prompt you to enter a path). Input "stop" to stop the program. 
