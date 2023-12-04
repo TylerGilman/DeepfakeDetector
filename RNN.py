@@ -26,8 +26,6 @@ if __name__ == "__main__":
 
     #The file paths of where the video data is being store
     #should be seperated in two folders, "Fake" and "Real"
-    #I think this and configuring the model to a graphics card
-    #are the only things you would have to change to get this to work
     train_videos_path = "D:\Dataset\dataset\Train"
     test_videos_path = "D:\Dataset\dataset\Test"
 
@@ -126,7 +124,7 @@ if __name__ == "__main__":
 #hyperparameters 
 input_size = 2
 sequence_length = 20
-num_layers = 3
+num_layers = 20
 hidden_size = 3
 num_classes = 2
 learning_rate = 1e-4
