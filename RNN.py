@@ -232,7 +232,7 @@ if __name__ == "__main__":
             print(f"Accuracy of {classes[i]}: {acc:.2f} %")
 
     #Print the loss function over time
-    plt.plot(len(loss_values), loss_values)
+    plt.plot(range(len(loss_values)), loss_values)
     plt.title("Loss over iterations")
     plt.xlabel("Iterations")
     plt.ylabel("Loss")
