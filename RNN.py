@@ -180,7 +180,7 @@ if __name__ == "__main__":
             labels_in_batch = train_labels_tensor[batch_idx * BATCH_SIZE: batch_idx * BATCH_SIZE + scores.shape[0]]
             loss = criterion(scores, labels_in_batch)
 
-            loss_values.append(loss)
+            loss_values.append(loss.item())
 
             #backward
             optimizer.zero_grad()
@@ -194,9 +194,14 @@ if __name__ == "__main__":
     num_correct = 0
     num_samples = 0
     modelrnn.eval()
+    
+    #Save the neural network so we only have to train it once
+    torch.save(modelrnn.state_dict(), './models/RNN.pth')
 
     with torch.no_grad():
         done = False
+        n_class_correct = [0 for i in range(2)]
+        n_class_samples = [0 for i in range(2)]
         for batch_idx, data in enumerate(test_loader):
             data = data.to(device)
             
@@ -208,12 +213,23 @@ if __name__ == "__main__":
             num_correct += (predictions == classes).sum()
             num_samples += predictions.size(-1)
 
+            for i in range(classes.size(0)):
+                label = classes[i]
+                pred = predictions[i]
+                if (label == pred):
+                    n_class_correct[label] += 1
+                n_class_samples[label] += 1
+
             acc = 100 * num_correct / num_samples
 
             if done:
                 break
 
         print(f"Accuracy of the network {acc} %")
+
+        for i in range(2):
+            acc = 100 * n_class_correct[i] / n_class_samples[i]
+            print(f"Accuracy of {classes[i]}: {acc:.2f} %")
 
     #Print the loss function over time
     plt.plot(len(loss_values), loss_values)
