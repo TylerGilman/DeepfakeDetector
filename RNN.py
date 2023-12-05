@@ -12,7 +12,7 @@ import matplotlib.pyplot as plt
 IMG_SIZE = 224
 BATCH_SIZE = 10
 
-MAX_SEQ_LENGTH = 20
+MAX_SEQ_LENGTH = 10
 NUM_FEATURES = 2
 
 if __name__ == "__main__":
@@ -123,11 +123,11 @@ if __name__ == "__main__":
 
 #hyperparameters 
 input_size = 2
-sequence_length = 20
-num_layers = 20
+sequence_length = 10
+num_layers = 10
 hidden_size = 3
 num_classes = 2
-learning_rate = 1e-4
+learning_rate = 1e-5
 batch_size = BATCH_SIZE
 num_epochs = 100
 
