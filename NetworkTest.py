@@ -84,7 +84,7 @@ weights = torch.load("./models/RNN.pth", map_location=torch.device('cpu'))
 modelrnn = RNN(input_size, hidden_size, num_layers, num_classes)
 modelrnn.load_state_dict(weights)
 modelrnn.eval()
-"C:\Users\super\OneDrive\Documents\School\AI\Deepfake project\dataset\Test\Fake\850_764.mp4"
+
 running = True
 
 while running:
