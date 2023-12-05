@@ -167,6 +167,8 @@ if __name__ == "__main__":
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.Adam(modelrnn.parameters(), lr = learning_rate)
     
+    class_labels = ["Real", "Fake"]
+
     loss_values = []
     
     #Train network
@@ -229,7 +231,7 @@ if __name__ == "__main__":
 
         for i in range(2):
             acc = 100 * n_class_correct[i] / n_class_samples[i]
-            print(f"Accuracy of {classes[i]}: {acc:.2f} %")
+            print(f"Accuracy of {class_labels[i]}: {acc:.2f} %")
 
     #Print the loss function over time
     plt.plot(range(len(loss_values)), loss_values)
