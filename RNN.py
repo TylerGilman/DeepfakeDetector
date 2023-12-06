@@ -16,21 +16,15 @@ MAX_SEQ_LENGTH = 20
 NUM_FEATURES = 2
 
 if __name__ == "__main__":
-
-    if torch.backends.mps.is_available():
-        device=torch.device("mps")
-    elif torch.cuda.is_available():
-        device=torch.device("cuda")
-    else:
-        device=torch.device("cpu")
+    device = torch.device("cpu")
 
     #The file paths of where the video data is being store
     #should be seperated in two folders, "Fake" and "Real"
-    train_videos_path = "D:\Dataset\dataset\Train"
-    test_videos_path = "D:\Dataset\dataset\Test"
+    train_videos_path = 'data/split/videos/train'
+    test_videos_path = 'data/split/videos/test'
 
     # Loading in the pretrained CNN. Used to train the RNN
-    feature_extractor = torch.load("./models/CNN.pth", map_location=torch.device('cpu'))
+    feature_extractor = torch.load("./models/CNN.pth", map_location=device)
     model = ConvNet()
     model.load_state_dict(feature_extractor)
 
@@ -73,18 +67,18 @@ if __name__ == "__main__":
     #Returns the CNN predicted result of the video based on each of its frames
     def prepare_all_videos(root_dir):
         #Counting the number of videos and keeping a list of all of their file paths
-        num_samples = len(os.listdir(root_dir + "/Fake")) + len(os.listdir(root_dir + "/Real"))
-        video_paths = os.listdir(root_dir + "/Fake")
-        video_paths += os.listdir(root_dir + "/Real")
+        num_samples = len(os.listdir(root_dir + "/fake")) + len(os.listdir(root_dir + "/real"))
+        video_paths = os.listdir(root_dir + "/fake")
+        video_paths += os.listdir(root_dir + "/real")
 
         #Create an array that stores the class of its associated video as a one-hot vector
         #The index of the 1 is associated with where it would be in the output of the CNN
         labels = []
 
-        for _ in range (len(os.listdir(root_dir + "/Fake"))):
+        for _ in range (len(os.listdir(root_dir + "/fake"))):
             labels.append([0, 1])
         
-        for _ in range (len(os.listdir(root_dir + "/Real"))):
+        for _ in range (len(os.listdir(root_dir + "/real"))):
             labels.append([1, 0])
 
         #Am array to store the output of the CNN on each of the frames
@@ -94,9 +88,9 @@ if __name__ == "__main__":
         for idx, path in enumerate(video_paths):
             #Gather all of its frames and add a batch dimenstion
             if labels[idx] == [0, 1]:
-                frames = load_video(os.path.join(root_dir, "Fake", path))
+                frames = load_video(os.path.join(root_dir, "fake", path))
             else:
-                frames = load_video(os.path.join(root_dir, "Real", path))
+                frames = load_video(os.path.join(root_dir, "real", path))
             frames = frames[None,...]
 
             #Initialize placeholders to store features of the current video
@@ -129,7 +123,7 @@ hidden_size = 3
 num_classes = 2
 learning_rate = 1e-4
 batch_size = BATCH_SIZE
-num_epochs = 100
+num_epochs = 33
 
 #Simple RNN class
 class RNN(nn.Module):
@@ -163,7 +157,7 @@ if __name__ == "__main__":
     test_loader = torch.utils.data.DataLoader(dataset=test_data, batch_size = batch_size, shuffle = False, pin_memory=True)
     test_labels_tensor = torch.tensor(test_labels, dtype=torch.float32)
 
-    #loss and optimizer
+  #loss and optimizer
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.Adam(modelrnn.parameters(), lr = learning_rate)
     
@@ -174,7 +168,7 @@ if __name__ == "__main__":
         iter = 0
         for batch_idx, data in enumerate(train_loader):
             data = data.to(device)
-
+            batch_idx = batch_idx
             #forward
             scores = modelrnn(data)
             labels_in_batch = train_labels_tensor[batch_idx * BATCH_SIZE: batch_idx * BATCH_SIZE + scores.shape[0]]
@@ -204,7 +198,7 @@ if __name__ == "__main__":
         n_class_samples = [0 for i in range(2)]
         for batch_idx, data in enumerate(test_loader):
             data = data.to(device)
-            
+            batch_idx = batch_idx
             scores = modelrnn(data)
 
             _, predictions = torch.max(scores, 1)
@@ -226,7 +220,7 @@ if __name__ == "__main__":
                 break
 
         print(f"Accuracy of the network {acc} %")
-
+        print(classes)
         for i in range(2):
             acc = 100 * n_class_correct[i] / n_class_samples[i]
             print(f"Accuracy of {classes[i]}: {acc:.2f} %")
