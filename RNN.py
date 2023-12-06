@@ -12,7 +12,7 @@ import matplotlib.pyplot as plt
 IMG_SIZE = 224
 BATCH_SIZE = 10
 
-MAX_SEQ_LENGTH = 20
+MAX_SEQ_LENGTH = 10
 NUM_FEATURES = 2
 
 if __name__ == "__main__":
@@ -117,11 +117,11 @@ if __name__ == "__main__":
 
 #hyperparameters 
 input_size = 2
-sequence_length = 20
-num_layers = 20
+sequence_length = 10
+num_layers = 10
 hidden_size = 3
 num_classes = 2
-learning_rate = 1e-4
+learning_rate = 1e-5
 batch_size = BATCH_SIZE
 num_epochs = 33
 
@@ -161,6 +161,8 @@ if __name__ == "__main__":
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.Adam(modelrnn.parameters(), lr = learning_rate)
     
+    class_labels = ["Real", "Fake"]
+
     loss_values = []
     
     #Train network
@@ -223,7 +225,7 @@ if __name__ == "__main__":
         print(classes)
         for i in range(2):
             acc = 100 * n_class_correct[i] / n_class_samples[i]
-            print(f"Accuracy of {classes[i]}: {acc:.2f} %")
+            print(f"Accuracy of {class_labels[i]}: {acc:.2f} %")
 
     #Print the loss function over time
     plt.plot(range(len(loss_values)), loss_values)
