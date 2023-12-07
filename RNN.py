@@ -11,13 +11,15 @@ import matplotlib.pyplot as plt
 
 #Constants
 IMG_SIZE = 224
-BATCH_SIZE = 10
 
 MAX_SEQ_LENGTH = 10
 NUM_FEATURES = 2
 
+# Checks if this is being run directly or from another file
+# Serves the purpose of not retraining the model if it is being referenced from elsewhere
 if __name__ == "__main__":
 
+    # Determine the apropriate device to use in the network
     if torch.backends.mps.is_available():
         device=torch.device("mps")
     elif torch.cuda.is_available():
@@ -25,8 +27,8 @@ if __name__ == "__main__":
     else:
         device=torch.device("cpu")
 
-    #The file paths of where the video data is being store
-    #should be seperated in two folders, "Fake" and "Real"
+    # The file paths where the video data is being store
+    # should be seperated in two folders, "Fake" and "Real"
     train_videos_path = "D:\Dataset\dataset\Train"
     test_videos_path = "D:\Dataset\dataset\Test"
 
@@ -56,14 +58,14 @@ if __name__ == "__main__":
             cap.release()
         return np.array(frames)
 
-    # Crops out the center square of the given frame
+    # Crops the center down to a square by cropping the longer sides to be the same
+    # length as the shorter sides
     def crop_center_square(frame):
         y, x = frame.shape[0:2]
         min_dim = min(x, y)
         start_x = (x // 2) - (min_dim // 2)
         start_y = (y // 2) - (min_dim // 2)
         return frame[start_y : start_y + min_dim, start_x : start_x + min_dim]
-
 
     # Transforms to apply to each frame when passed into the model 
     transform = transforms.Compose([
@@ -114,8 +116,6 @@ if __name__ == "__main__":
                 
             #Squeeze the value of each frame into one value to represent the whole video
             frame_features[idx,] = temp_frame_features.squeeze()
-
-            print(idx)
         
         return frame_features, labels
 
@@ -130,19 +130,23 @@ num_layers = 10
 hidden_size = 128
 num_classes = 2
 learning_rate = 1e-3
-batch_size = BATCH_SIZE
+batch_size = 10
 num_epochs = 100
 
-#Simple RNN class
+# RNN class
 class RNN(nn.Module):
+    # Initialize network
     def __init__(self, input_size, hidden_size, num_layers, num_classes):
         super(RNN, self).__init__()
         self.hidden_size = hidden_size
         self.num_layers = num_layers
+
+        # The recurrent part of the network
         self.rnn = nn.RNN(input_size, hidden_size, num_layers, batch_first=True)
 
         self.fc = nn.Linear(hidden_size * sequence_length, out_features=num_classes)
 
+    # Forward pass
     def forward(self, x):
         h0 = torch.zeros(self.num_layers, x.size(0), self.hidden_size)
 
@@ -152,6 +156,7 @@ class RNN(nn.Module):
         out = self.fc(out)
         return out
 
+# Again ensuring that this only runs in the main file
 if __name__ == "__main__":
     # Initialize the RNN
     modelrnn = RNN(input_size, hidden_size, num_layers, num_classes)
@@ -176,13 +181,12 @@ if __name__ == "__main__":
     
     #Train network
     for epoch in tqdm(range(num_epochs)):
-        iter = 0
         for batch_idx, data in enumerate(train_loader):
             data = data.to(device)
 
             #forward
             scores = modelrnn(data)
-            labels_in_batch = train_labels_tensor[batch_idx * BATCH_SIZE: batch_idx * BATCH_SIZE + scores.shape[0]]
+            labels_in_batch = train_labels_tensor[batch_idx * batch_size: batch_idx * batch_size + scores.shape[0]]
             loss = criterion(scores, labels_in_batch)
 
             loss_values.append(loss.item())
@@ -193,18 +197,13 @@ if __name__ == "__main__":
 
             #optimizer step
             optimizer.step()
-            iter += 1
 
     #Check accuracy
     num_correct = 0
     num_samples = 0
     modelrnn.eval()
-    
-    #Save the neural network so we only have to train it once
-    torch.save(modelrnn.state_dict(), './models/tinyRNN.pth')
 
     with torch.no_grad():
-        done = False
         n_class_correct = [0 for i in range(2)]
         n_class_samples = [0 for i in range(2)]
         for batch_idx, data in enumerate(test_loader):
@@ -213,11 +212,12 @@ if __name__ == "__main__":
             scores = modelrnn(data)
 
             _, predictions = torch.max(scores, 1)
-            _, classes = test_labels_tensor[batch_idx * BATCH_SIZE: batch_idx * BATCH_SIZE + scores.shape[0]].max(1)
+            _, classes = test_labels_tensor[batch_idx * batch_size: batch_idx * batch_size + scores.shape[0]].max(1)
 
             num_correct += (predictions == classes).sum()
             num_samples += predictions.size(-1)
 
+            # Determining the accuray of each class
             for i in range(classes.size(0)):
                 label = classes[i]
                 pred = predictions[i]
@@ -227,16 +227,14 @@ if __name__ == "__main__":
 
             acc = 100 * num_correct / num_samples
 
-            if done:
-                break
-
         print(f"Accuracy of the network {acc} %")
 
+        # Print the acuracies of each class
         for i in range(2):
             acc = 100 * n_class_correct[i] / n_class_samples[i]
             print(f"Accuracy of {class_labels[i]}: {acc:.2f} %")
 
-    #Print the loss function over time
+    # Plot the loss function over time
     plt.plot(range(len(loss_values)), loss_values)
     plt.title("Loss over iterations")
     plt.xlabel("Iterations")
@@ -245,4 +243,4 @@ if __name__ == "__main__":
     plt.savefig("RNN Loss over interations")
 
     #Save the neural network so we only have to train it once
-    torch.save(modelrnn.state_dict(), './models/tinyRNN.pth')
+    torch.save(modelrnn.state_dict(), './models/RNN.pth')

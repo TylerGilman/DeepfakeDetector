@@ -1,3 +1,8 @@
+#############################################
+# Provded by the FaceForensics++ 
+# Downloads the dataset that we used for this project
+#############################################
+
 #!/usr/bin/env python
 """ Downloads FaceForensics++ and Deep Fake Detection public data release
 Example usage:
