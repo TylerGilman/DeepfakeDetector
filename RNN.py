@@ -6,6 +6,7 @@ import numpy as np
 from CNN import ConvNet
 import cv2
 import os
+from tqdm import tqdm
 import matplotlib.pyplot as plt
 
 #Constants
@@ -33,6 +34,7 @@ if __name__ == "__main__":
     feature_extractor = torch.load("./models/CNN.pth", map_location=torch.device('cpu'))
     model = ConvNet()
     model.load_state_dict(feature_extractor)
+    model.eval()
 
     # Loads a video from the given path as a list of frames and resizes it to the given dimensions
     def load_video(path, max_frames = 0, resize = (IMG_SIZE, IMG_SIZE)):
@@ -125,9 +127,9 @@ if __name__ == "__main__":
 input_size = 2
 sequence_length = 10
 num_layers = 10
-hidden_size = 3
+hidden_size = 128
 num_classes = 2
-learning_rate = 1e-5
+learning_rate = 1e-3
 batch_size = BATCH_SIZE
 num_epochs = 100
 
@@ -154,6 +156,7 @@ if __name__ == "__main__":
     # Initialize the RNN
     modelrnn = RNN(input_size, hidden_size, num_layers, num_classes)
     modelrnn.to(device)
+    modelrnn.train()
 
     #Formatting the training data as tensors
     train_loader = torch.utils.data.DataLoader(dataset=train_data, batch_size=batch_size, shuffle=False, pin_memory=True)
@@ -172,7 +175,7 @@ if __name__ == "__main__":
     loss_values = []
     
     #Train network
-    for epoch in range(num_epochs):
+    for epoch in tqdm(range(num_epochs)):
         iter = 0
         for batch_idx, data in enumerate(train_loader):
             data = data.to(device)
@@ -198,7 +201,7 @@ if __name__ == "__main__":
     modelrnn.eval()
     
     #Save the neural network so we only have to train it once
-    torch.save(modelrnn.state_dict(), './models/RNN.pth')
+    torch.save(modelrnn.state_dict(), './models/tinyRNN.pth')
 
     with torch.no_grad():
         done = False
@@ -242,4 +245,4 @@ if __name__ == "__main__":
     plt.savefig("RNN Loss over interations")
 
     #Save the neural network so we only have to train it once
-    torch.save(modelrnn.state_dict(), './models/RNN.pth')
+    torch.save(modelrnn.state_dict(), './models/tinyRNN.pth')
