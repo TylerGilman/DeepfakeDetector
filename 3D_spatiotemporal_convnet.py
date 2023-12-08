@@ -18,9 +18,14 @@ test_path = pathlib.Path('UCF101_subset/test')
 
 
 
-
+# model hyperparameters
 n_frames = 10
 batch_size = 8
+learning_rate = 0.0001
+epochs = 15
+
+
+
 
 output_signature = (tf.TensorSpec(shape = (None, None, None, 3), dtype = tf.float32),
                     tf.TensorSpec(shape = (), dtype = tf.int16))
@@ -191,13 +196,13 @@ model = keras.Model(input, x)
 #model.build(frames)
 
 model.compile(loss = keras.losses.SparseCategoricalCrossentropy(from_logits=True), 
-              optimizer = keras.optimizers.Adam(learning_rate = 0.0001), 
+              optimizer = keras.optimizers.Adam(learning_rate = learning_rate), 
               metrics = ['accuracy'])
 
 
 
 info = model.fit(x = train_ds,
-                    epochs = 1, 
+                    epochs = epochs, 
                     #validation_data = val_ds
 )
 
