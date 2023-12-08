@@ -1,5 +1,3 @@
-import random
-import cv2
 import einops
 import numpy as np
 import seaborn as sns
@@ -7,14 +5,15 @@ import matplotlib.pyplot as plt
 import tensorflow as tf
 import keras
 from keras import layers
+import pathlib
 from Video_handling import *
 sns.set()
 
 
 
-train_path = # set path to trianing videos
-val_path = # set path to validation videos
-test_path = # set path to test videos
+train_path = pathlib.Path('UCF101_subset/train')
+#val_path = # set path to validation videos
+test_path = pathlib.Path('UCF101_subset/test')
 
 
 
@@ -141,8 +140,8 @@ class ResizeVideo(keras.layers.Layer):
       Return:
         A downsampled size of the video according to the new height and width it should be resized to.
     """
-    # b stands for batch size, t stands for time, h stands for height, 
-    # w stands for width, and c stands for the number of channels.
+    # b = batch size, t = time, h = height, 
+    # w = width, and c = number of channels.
     old_shape = einops.parse_shape(video, 'b t h w c')
     images = einops.rearrange(video, 'b t h w c -> (b t) h w c')
     images = self.resizing_layer(images)
@@ -180,7 +179,6 @@ x = ResizeVideo(height // 16, width // 16)(x)
 
 # Block 4
 x = add_residual_block(x, 128, (3, 3, 3))
-
 x = layers.GlobalAveragePooling3D()(x)
 x = layers.Flatten()(x)
 x = layers.Dense(10)(x)
@@ -188,8 +186,9 @@ x = layers.Dense(10)(x)
 model = keras.Model(input, x)
 
 
-frames, label = next(iter(train_ds))
-model.build(frames)
+#frames, label = next(iter(train_ds))
+
+#model.build(frames)
 
 model.compile(loss = keras.losses.SparseCategoricalCrossentropy(from_logits=True), 
               optimizer = keras.optimizers.Adam(learning_rate = 0.0001), 
@@ -198,7 +197,7 @@ model.compile(loss = keras.losses.SparseCategoricalCrossentropy(from_logits=True
 
 
 info = model.fit(x = train_ds,
-                    epochs = 5, 
+                    epochs = 1, 
                     #validation_data = val_ds
 )
 
@@ -206,7 +205,7 @@ info = model.fit(x = train_ds,
 
 def plot_history(info):
   """
-    Plotting training and validation learning curves.
+    Plotting training loss and accuracy curves.
 
     Args:
       history: model history with all the metric measures
@@ -218,25 +217,28 @@ def plot_history(info):
   # Plot loss
   ax1.set_title('Loss')
   ax1.plot(info.history['loss'], label = 'train')
-  ax1.plot(info.history['val_loss'], label = 'test')
   ax1.set_ylabel('Loss')
 
   # Determine upper bound of y-axis
-  max_loss = max(info.history['loss'] + info.history['val_loss'])
+  max_loss = max(info.history['loss'])
 
   ax1.set_ylim([0, np.ceil(max_loss)])
   ax1.set_xlabel('Epoch')
-  ax1.legend(['Train', 'Validation']) 
+  ax1.legend(['Train']) 
 
   # Plot accuracy
   ax2.set_title('Accuracy')
   ax2.plot(info.history['accuracy'],  label = 'train')
-  ax2.plot(info.history['val_accuracy'], label = 'test')
   ax2.set_ylabel('Accuracy')
   ax2.set_ylim([0, 1])
   ax2.set_xlabel('Epoch')
-  ax2.legend(['Train', 'Validation'])
-
+  ax2.legend(['Train'])
+  plt.subplots_adjust(wspace=0.4,hspace=0.4)
   plt.show()
 
 plot_history(info)
+
+
+# evaluate on test set
+test_metrics = model.evaluate(test_ds, return_dict=True)
+print(test_metrics)
