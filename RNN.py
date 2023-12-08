@@ -29,8 +29,8 @@ if __name__ == "__main__":
 
     # The file paths where the video data is being store
     # should be seperated in two folders, "Fake" and "Real"
-    train_videos_path = "D:\Dataset\dataset\Train"
-    test_videos_path = "D:\Dataset\dataset\Test"
+    train_videos_path = "data/split/videos/train"
+    test_videos_path = "data/split/videos/test"
     # Loading in the pretrained CNN. Used to train the RNN
     feature_extractor = torch.load("./models/CNN.pth", map_location=device)
     model = ConvNet()
@@ -175,7 +175,7 @@ if __name__ == "__main__":
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.Adam(modelrnn.parameters(), lr = learning_rate)
     
-    class_labels = ["Real", "Fake"]
+    class_labels = ["real", "fake"]
 
     loss_values = []
     
